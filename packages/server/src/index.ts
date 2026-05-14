@@ -10,6 +10,8 @@ import {
   playHands,
   advanceAfterResult,
   buyJoker,
+  buyConsumable,
+  useConsumable,
   endShop,
 } from '@mournival/shared';
 import {
@@ -129,6 +131,24 @@ io.on('connection', socket => {
     const playerId = getPlayerIdBySocket(socket.id);
     if (!room || !playerId) return;
     const newState = buyJoker(room.state, playerId, jokerId);
+    updateRoom(room, newState);
+    broadcast(room.code, room.state);
+  });
+
+  socket.on('game:buy-consumable', consumableId => {
+    const room = getRoomBySocket(socket.id);
+    const playerId = getPlayerIdBySocket(socket.id);
+    if (!room || !playerId) return;
+    const newState = buyConsumable(room.state, playerId, consumableId);
+    updateRoom(room, newState);
+    broadcast(room.code, room.state);
+  });
+
+  socket.on('game:use-consumable', (consumableId, targetCardIds) => {
+    const room = getRoomBySocket(socket.id);
+    const playerId = getPlayerIdBySocket(socket.id);
+    if (!room || !playerId) return;
+    const newState = useConsumable(room.state, playerId, consumableId, targetCardIds);
     updateRoom(room, newState);
     broadcast(room.code, room.state);
   });

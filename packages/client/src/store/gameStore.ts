@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { GameState } from '@mournival/shared';
+import { GameState, ClassName } from '@mournival/shared';
 import { socket } from '../socket';
 
 interface GameStore {
@@ -7,17 +7,21 @@ interface GameStore {
   roomCode: string | null;
   myPlayerId: string | null;
   error: string | null;
-  shopJokerIds: string[];
+  // Client-side consumable targeting state
+  activeConsumableId: string | null;
 
   connect: () => void;
   createRoom: (playerName: string) => void;
   joinRoom: (code: string, playerName: string) => void;
-  selectClass: (className: string) => void;
+  selectClass: (className: ClassName) => void;
   startGame: () => void;
   selectCards: (cardIds: string[]) => void;
   playHand: () => void;
   discard: () => void;
   buyJoker: (jokerId: string) => void;
+  buyConsumable: (consumableId: string) => void;
+  setActiveConsumable: (consumableId: string | null) => void;
+  useConsumable: (consumableId: string, targetCardIds: string[]) => void;
   endShop: () => void;
   continueAfterResult: () => void;
 }
@@ -31,11 +35,9 @@ export const useGameStore = create<GameStore>((set, get) => {
     roomCode: null,
     myPlayerId: null,
     error: null,
-    shopJokerIds: [],
+    activeConsumableId: null,
 
-    connect() {
-      socket.connect();
-    },
+    connect() { socket.connect(); },
 
     createRoom(playerName) {
       socket.emit('room:create', playerName, roomCode => {
@@ -51,35 +53,30 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     selectClass(className) {
-      socket.emit('game:select-class', className as import('@mournival/shared').ClassName);
+      socket.emit('game:select-class', className);
     },
 
-    startGame() {
-      socket.emit('game:ready');
+    startGame() { socket.emit('game:ready'); },
+
+    selectCards(cardIds) { socket.emit('game:select-cards', cardIds); },
+
+    playHand() { socket.emit('game:play-hand'); },
+
+    discard() { socket.emit('game:discard'); },
+
+    buyJoker(jokerId) { socket.emit('game:buy-joker', jokerId); },
+
+    buyConsumable(consumableId) { socket.emit('game:buy-consumable', consumableId); },
+
+    setActiveConsumable(consumableId) { set({ activeConsumableId: consumableId }); },
+
+    useConsumable(consumableId, targetCardIds) {
+      socket.emit('game:use-consumable', consumableId, targetCardIds);
+      set({ activeConsumableId: null });
     },
 
-    selectCards(cardIds) {
-      socket.emit('game:select-cards', cardIds);
-    },
+    endShop() { socket.emit('game:end-shop'); },
 
-    playHand() {
-      socket.emit('game:play-hand');
-    },
-
-    discard() {
-      socket.emit('game:discard');
-    },
-
-    buyJoker(jokerId) {
-      socket.emit('game:buy-joker', jokerId);
-    },
-
-    endShop() {
-      socket.emit('game:end-shop');
-    },
-
-    continueAfterResult() {
-      socket.emit('game:ready');
-    },
+    continueAfterResult() { socket.emit('game:ready'); },
   };
 });

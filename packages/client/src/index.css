@@ -11,7 +11,7 @@
   --red-light: #e74c3c;
   --green: #27ae60;
   --blue: #2980b9;
-  --purple: #8e44ad;
+  --purple: #a569bd;
   --text: #f0e6d3;
   --text-dim: #a09070;
   --card-bg: #fdf6e3;
@@ -88,6 +88,31 @@ input {
 }
 input:focus { border-color: var(--gold); }
 
+/* ── Card enhancements ── */
+.card { position: relative; }
+.card-enh {
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  border-radius: 3px;
+  padding: 1px 3px;
+}
+.enh-bonus  { background: rgba(212,160,23,0.25); color: var(--gold); }
+.enh-mult   { background: rgba(192,57,43,0.25); color: var(--red-light); }
+.enh-glass  { background: rgba(41,128,185,0.25); color: #5dade2; }
+.enh-steel  { background: rgba(149,165,166,0.25); color: #aab7b8; }
+.enh-gold   { background: rgba(243,156,18,0.25); color: #f39c12; }
+.enh-wild   { background: rgba(142,68,173,0.25); color: #c39bd3; }
+/* Tinted card backgrounds for enhancements */
+.card-enh-bonus  { background: #fef9e0; }
+.card-enh-glass  { background: #ebf5fb; }
+.card-enh-steel  { background: #f2f3f4; }
+.card-enh-gold   { background: #fef5e4; }
+.card-enh-mult   { background: #fdedec; }
+
 /* ── Card ── */
 .card {
   width: 72px;
@@ -149,6 +174,56 @@ input:focus { border-color: var(--gold); }
 .card.clubs .center-suit {
   color: var(--spades);
 }
+
+/* ── Consumable Tray ── */
+.consumable-tray {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0 6px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 10px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+.tray-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+.consumable-card {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.15s;
+  background: var(--bg2);
+  user-select: none;
+}
+.consumable-card:hover { border-color: var(--gold-dim); background: var(--bg3); }
+.consumable-card.active { border-color: var(--gold); box-shadow: 0 0 8px rgba(212,160,23,0.35); }
+.consumable-card.arcana { border-color: #8e44ad55; }
+.consumable-card.arcana:hover, .consumable-card.arcana.active { border-color: #a569bd; }
+.consumable-card.celestial { border-color: #2980b955; }
+.consumable-card.celestial:hover, .consumable-card.celestial.active { border-color: #5dade2; }
+.consumable-icon { font-size: 16px; }
+.consumable-name { font-size: 12px; font-weight: 600; color: var(--text); }
+.consumable-hint { font-size: 10px; color: var(--text-dim); }
+
+/* ── Level badge ── */
+.level-badge {
+  display: inline-block;
+  font-size: 10px;
+  background: rgba(212,160,23,0.2);
+  color: var(--gold);
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-left: 5px;
+  vertical-align: middle;
+}
+
+/* ── Shop consumable variants ── */
+.shop-consumable.shop-arcana  { border-color: #8e44ad55; }
+.shop-consumable.shop-celestial { border-color: #2980b955; }
 
 /* ── Lobby ── */
 .lobby {
@@ -260,6 +335,31 @@ input:focus { border-color: var(--gold); }
 .game-log h4 { font-family: 'Cinzel', serif; color: var(--gold); font-size: 12px; margin-bottom: 8px; }
 .log-entry { font-size: 12px; color: var(--text-dim); margin-bottom: 4px; line-height: 1.4; }
 .log-entry:last-child { color: var(--text); }
+
+/* ── Mournival banner ── */
+.mournival-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: linear-gradient(135deg, rgba(142,68,173,0.25), rgba(212,160,23,0.25));
+  border: 1px solid var(--purple);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 4px;
+  animation: mournival-pulse 1.5s ease-in-out infinite alternate;
+}
+@keyframes mournival-pulse {
+  from { box-shadow: 0 0 8px rgba(165,105,189,0.4); }
+  to   { box-shadow: 0 0 20px rgba(165,105,189,0.8), 0 0 40px rgba(212,160,23,0.3); }
+}
+.mournival-crest { font-size: 32px; flex-shrink: 0; }
+.mournival-title {
+  font-family: 'Cinzel', serif;
+  font-size: 20px;
+  color: var(--gold);
+  letter-spacing: 0.1em;
+}
+.mournival-sub { font-size: 12px; color: var(--purple); margin-top: 2px; }
 
 /* ── Round Result Overlay ── */
 .overlay {

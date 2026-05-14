@@ -1,16 +1,9 @@
 import { GameState, ClassName } from '@mournival/shared';
-import {
-  applyClassToPlayer,
-  createGameState,
-  initPlayer,
-  startCombat,
-} from '@mournival/shared';
-import { getShopJokers } from '@mournival/shared';
+import { applyClassToPlayer, createGameState, initPlayer, startCombat } from '@mournival/shared';
 
 export interface Room {
   code: string;
   state: GameState;
-  shopJokers: ReturnType<typeof getShopJokers>;
 }
 
 const rooms = new Map<string, Room>();
@@ -25,7 +18,7 @@ export function createRoom(socketId: string, playerName: string): Room {
   const code = generateCode();
   const player = initPlayer(socketId, playerName);
   const state = createGameState(code, [player]);
-  const room: Room = { code, state, shopJokers: [] };
+  const room: Room = { code, state };
   rooms.set(code, room);
   socketToRoom.set(socketId, code);
   socketToPlayer.set(socketId, socketId);
@@ -59,16 +52,10 @@ export function getPlayerIdBySocket(socketId: string): string | undefined {
 export function removeSocket(socketId: string): Room | undefined {
   const room = getRoomBySocket(socketId);
   if (room) {
-    room.state = {
-      ...room.state,
-      players: room.state.players.filter(p => p.id !== socketId),
-    };
+    room.state = { ...room.state, players: room.state.players.filter(p => p.id !== socketId) };
     socketToRoom.delete(socketId);
     socketToPlayer.delete(socketId);
-    if (room.state.players.length === 0) {
-      rooms.delete(room.code);
-      return undefined;
-    }
+    if (room.state.players.length === 0) { rooms.delete(room.code); return undefined; }
   }
   return room;
 }
@@ -91,8 +78,5 @@ export function startGame(room: Room): Room {
 
 export function updateRoom(room: Room, newState: GameState): Room {
   room.state = newState;
-  if (newState.phase === 'shop') {
-    room.shopJokers = getShopJokers(newState.floor, newState.room);
-  }
   return room;
 }

@@ -12,11 +12,16 @@ export type HandType =
   | 'four-of-a-kind'
   | 'straight-flush'
   | 'royal-flush'
-  | 'five-of-a-kind';
+  | 'five-of-a-kind'
+  | 'flush-house'    // full house where all 5 cards share the same suit
+  | 'flush-five';    // five of a kind where all 5 cards share the same suit
 
 export type ClassName = 'Fighter' | 'Rogue' | 'Wizard' | 'Cleric' | 'Ranger' | 'Bard';
 
-export type CardEnhancement = 'bonus' | 'mult' | 'wild' | 'glass' | 'steel' | 'stone' | 'gold';
+// bonus: +30 chips when scoring | mult: +4 mult when scoring
+// glass: ×2 mult when scoring, 25% chance to break after | steel: ×1.5 mult per unplayed card in hand
+// gold: +3 gold when scoring | wild: counts as any suit
+export type CardEnhancement = 'bonus' | 'mult' | 'glass' | 'steel' | 'gold' | 'wild';
 
 export interface Card {
   id: string;
@@ -31,36 +36,52 @@ export interface JokerDefinition {
   description: string;
   rarity: 'common' | 'uncommon' | 'rare' | 'legendary';
   cost: number;
-  // Data-driven effect — no functions so it serializes cleanly over the wire
   trigger: JokerTrigger;
   addChips?: number;
   addMult?: number;
   xMult?: number;
-  // Optional condition filter
   onHandType?: HandType;
   onSuit?: Suit;
   onRank?: 'face' | 'ace' | 'number';
 }
 
 export type JokerTrigger =
-  | 'always'          // applied once when hand is played
-  | 'per-scoring-card' // applied once per scoring card
-  | 'per-suit-card';  // applied once per card of `onSuit`
+  | 'always'
+  | 'per-scoring-card'
+  | 'per-suit-card';
 
+// ── Consumable cards ────────────────────────────────────────────────────────
+export type ConsumableType = 'arcana' | 'celestial';
+
+export interface ConsumableCard {
+  id: string;           // unique instance id (defId + random suffix)
+  defId: string;        // definition id, e.g. 'arcana-skull'
+  name: string;
+  type: ConsumableType;
+  description: string;
+  flavour: string;
+  cost: number;
+  // Celestial only — which hand type it levels up
+  levelsHandType?: HandType;
+  // Arcana only — how many cards must be targeted from hand
+  minTargets: number;
+  maxTargets: number;
+}
+
+// ── Classes ──────────────────────────────────────────────────────────────────
 export interface ClassDefinition {
   name: ClassName;
   description: string;
   flavour: string;
   startingHP: number;
   startingGold: number;
-  // Passive scoring bonuses applied during hand resolution
   handBonus: Partial<Record<HandType, { addChips?: number; addMult?: number; xMult?: number }>>;
   suitBonus: Partial<Record<Suit, { addChips?: number; addMult?: number }>>;
   rankBonus: Partial<Record<'face' | 'ace' | 'number', { addChips?: number; addMult?: number }>>;
-  // Special passive description (some effects are handled in gameLogic)
   passiveLabel: string;
 }
 
+// ── Monster ───────────────────────────────────────────────────────────────────
 export type AttackAction =
   | { type: 'attack'; damage: number }
   | { type: 'attack-all'; damage: number }
@@ -72,12 +93,13 @@ export interface MonsterDefinition {
   name: string;
   maxHP: number;
   attackPattern: AttackAction[];
-  weakness?: HandType;   // takes +50% damage
-  immunity?: HandType;   // takes 0 damage
+  weakness?: HandType;
+  immunity?: HandType;
   isBoss: boolean;
   rewardGold: number;
 }
 
+// ── Player ───────────────────────────────────────────────────────────────────
 export interface Player {
   id: string;
   name: string;
@@ -90,16 +112,19 @@ export interface Player {
   discardPile: Card[];
   selectedCardIds: string[];
   jokers: JokerDefinition[];
+  consumables: ConsumableCard[];     // max 2
+  handLevels: Partial<Record<HandType, number>>; // extra levels above base (0 = base)
   handsLeft: number;
   discardsLeft: number;
   status: 'picking' | 'ready' | 'dead';
 }
 
+// ── Game state ───────────────────────────────────────────────────────────────
 export interface MonsterState {
   definition: MonsterDefinition;
   currentHP: number;
   actionIndex: number;
-  shieldHP: number; // for buff-self actions
+  shieldHP: number;
 }
 
 export interface RoundResult {
@@ -107,6 +132,9 @@ export interface RoundResult {
   totalDamage: number;
   monsterAction: AttackAction;
   damageToPlayers: { playerId: string; damage: number }[];
+  goldGained: { playerId: string; amount: number }[];
+  brokenCards: string[];
+  mournivalTriggered: boolean; // all active players played four of a kind or better
   monsterDied: boolean;
 }
 
@@ -127,10 +155,12 @@ export interface GameState {
   players: Player[];
   monster: MonsterState | null;
   lastRoundResult: RoundResult | null;
+  shopJokers: JokerDefinition[];
+  shopConsumables: ConsumableCard[];
   log: string[];
 }
 
-// Socket event payloads
+// ── Socket events ────────────────────────────────────────────────────────────
 export interface ServerToClientEvents {
   'state': (state: GameState) => void;
   'error': (msg: string) => void;
@@ -145,5 +175,7 @@ export interface ClientToServerEvents {
   'game:play-hand': () => void;
   'game:discard': () => void;
   'game:buy-joker': (jokerId: string) => void;
+  'game:buy-consumable': (consumableId: string) => void;
+  'game:use-consumable': (consumableId: string, targetCardIds: string[]) => void;
   'game:end-shop': () => void;
 }

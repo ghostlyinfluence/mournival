@@ -5,4 +5,5 @@ export * from './scoring.js';
 export * from './classes.js';
 export * from './monsters.js';
 export * from './jokers.js';
+export * from './consumables.js';
 export * from './gameLogic.js';
