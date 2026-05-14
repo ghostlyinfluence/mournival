@@ -1,0 +1,14 @@
+{
+  "name": "mournival",
+  "private": true,
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "dev": "concurrently -n server,client -c cyan,magenta \"npm run dev -w @mournival/server\" \"npm run dev -w @mournival/client\"",
+    "build": "npm run build -w @mournival/shared && npm run build -w @mournival/server && npm run build -w @mournival/client",
+    "typecheck": "npm run typecheck -w @mournival/shared && npm run typecheck -w @mournival/server && npm run typecheck -w @mournival/client"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0",
+    "typescript": "^5.5.0"
+  }
+}
