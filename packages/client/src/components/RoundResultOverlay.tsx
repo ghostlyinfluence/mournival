@@ -85,8 +85,34 @@ export function RoundResultOverlay({ result, players, monsterName, monsterHP, mo
           </div>
         )}
 
+        {result.interestGained.length > 0 && (
+          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {result.interestGained.map(g => {
+              const pname = players.find(p => p.id === g.playerId)?.name ?? 'Unknown';
+              return (
+                <div key={g.playerId} style={{ fontSize: 12, color: 'var(--gold)' }}>
+                  💵 {pname} earned {g.amount} gold interest
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {result.goldGained.length > 0 && (
+          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {result.goldGained.map(g => {
+              const pname = players.find(p => p.id === g.playerId)?.name ?? 'Unknown';
+              return (
+                <div key={g.playerId} style={{ fontSize: 12, color: 'var(--gold)' }}>
+                  💰 {pname} earned {g.amount} gold from gold card{g.amount !== 3 ? 's' : ''}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {result.brokenCards.length > 0 && (
-          <div style={{ marginTop: 8, fontSize: 12, color: '#5dade2' }}>
+          <div style={{ marginTop: 8, fontSize: 12, color: 'var(--cyan)' }}>
             💔 {result.brokenCards.length} glass card{result.brokenCards.length !== 1 ? 's' : ''} shattered
           </div>
         )}

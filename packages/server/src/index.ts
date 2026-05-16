@@ -13,6 +13,10 @@ import {
   buyConsumable,
   useConsumable,
   endShop,
+  buyPack,
+  pickFromPack,
+  closePack,
+  selectNode,
 } from '@mournival/shared';
 import {
   createRoom,
@@ -21,6 +25,7 @@ import {
   getPlayerIdBySocket,
   removeSocket,
   setClass,
+  allClassesConfirmed,
   startGame,
   updateRoom,
 } from './rooms.js';
@@ -69,16 +74,24 @@ io.on('connection', socket => {
     broadcast(updated.code, updated.state);
   });
 
+  // Handles both class-select confirmation and round-result continuation.
   socket.on('game:ready', () => {
     const room = getRoomBySocket(socket.id);
+    const playerId = getPlayerIdBySocket(socket.id);
     if (!room) return;
+
     if (room.state.phase === 'class-select' || room.state.phase === 'lobby') {
-      const allHaveClass = room.state.players.every(p => p.class);
-      if (allHaveClass) {
+      // Only start when every player has explicitly called game:select-class.
+      if (allClassesConfirmed(room)) {
         const updated = startGame(room);
         broadcast(updated.code, updated.state);
       }
+    } else if (room.state.phase === 'round-result') {
+      const newState = advanceAfterResult(room.state);
+      updateRoom(room, newState);
+      broadcast(room.code, room.state);
     }
+    void playerId; // playerId unused here but kept for consistency
   });
 
   socket.on('game:select-cards', cardIds => {
@@ -98,20 +111,18 @@ io.on('connection', socket => {
     const player = room.state.players.find(p => p.id === playerId);
     if (!player || player.selectedCardIds.length === 0) return;
 
-    // Mark player as ready
-    room.state = {
+    // Mark this player ready, then resolve if everyone is.
+    const withReady = {
       ...room.state,
       players: room.state.players.map(p =>
-        p.id === playerId ? { ...p, status: 'ready' } : p
+        p.id === playerId ? { ...p, status: 'ready' as const } : p
       ),
     };
+    updateRoom(room, withReady);
 
     const activePlayers = room.state.players.filter(p => p.status !== 'dead');
-    const allReady = activePlayers.every(p => p.status === 'ready');
-
-    if (allReady) {
-      const resolved = playHands(room.state);
-      updateRoom(room, resolved);
+    if (activePlayers.every(p => p.status === 'ready')) {
+      updateRoom(room, playHands(room.state));
     }
 
     broadcast(room.code, room.state);
@@ -121,8 +132,7 @@ io.on('connection', socket => {
     const room = getRoomBySocket(socket.id);
     const playerId = getPlayerIdBySocket(socket.id);
     if (!room || !playerId) return;
-    const newState = discardCards(room.state, playerId);
-    updateRoom(room, newState);
+    updateRoom(room, discardCards(room.state, playerId));
     broadcast(room.code, room.state);
   });
 
@@ -130,8 +140,7 @@ io.on('connection', socket => {
     const room = getRoomBySocket(socket.id);
     const playerId = getPlayerIdBySocket(socket.id);
     if (!room || !playerId) return;
-    const newState = buyJoker(room.state, playerId, jokerId);
-    updateRoom(room, newState);
+    updateRoom(room, buyJoker(room.state, playerId, jokerId));
     broadcast(room.code, room.state);
   });
 
@@ -139,8 +148,7 @@ io.on('connection', socket => {
     const room = getRoomBySocket(socket.id);
     const playerId = getPlayerIdBySocket(socket.id);
     if (!room || !playerId) return;
-    const newState = buyConsumable(room.state, playerId, consumableId);
-    updateRoom(room, newState);
+    updateRoom(room, buyConsumable(room.state, playerId, consumableId));
     broadcast(room.code, room.state);
   });
 
@@ -148,29 +156,55 @@ io.on('connection', socket => {
     const room = getRoomBySocket(socket.id);
     const playerId = getPlayerIdBySocket(socket.id);
     if (!room || !playerId) return;
-    const newState = useConsumable(room.state, playerId, consumableId, targetCardIds);
-    updateRoom(room, newState);
+    updateRoom(room, useConsumable(room.state, playerId, consumableId, targetCardIds));
     broadcast(room.code, room.state);
   });
 
+  socket.on('game:buy-pack', packId => {
+    const room = getRoomBySocket(socket.id);
+    const playerId = getPlayerIdBySocket(socket.id);
+    if (!room || !playerId) return;
+    updateRoom(room, buyPack(room.state, playerId, packId));
+    broadcast(room.code, room.state);
+  });
+
+  socket.on('game:pick-from-pack', itemId => {
+    const room = getRoomBySocket(socket.id);
+    const playerId = getPlayerIdBySocket(socket.id);
+    if (!room || !playerId) return;
+    updateRoom(room, pickFromPack(room.state, playerId, itemId));
+    broadcast(room.code, room.state);
+  });
+
+  socket.on('game:close-pack', () => {
+    const room = getRoomBySocket(socket.id);
+    const playerId = getPlayerIdBySocket(socket.id);
+    if (!room || !playerId) return;
+    updateRoom(room, closePack(room.state, playerId));
+    broadcast(room.code, room.state);
+  });
+
+  // First player to click a node selects it for the whole party.
+  socket.on('game:select-node', nodeId => {
+    const room = getRoomBySocket(socket.id);
+    if (!room || room.state.phase !== 'map') return;
+    updateRoom(room, selectNode(room.state, nodeId));
+    broadcast(room.code, room.state);
+  });
+
+  // Each player must confirm before the shop closes — last one triggers the advance.
   socket.on('game:end-shop', () => {
     const room = getRoomBySocket(socket.id);
-    if (!room) return;
-    // Wait until all players signal ready or just advance
-    const newState = endShop(room.state);
-    updateRoom(room, newState);
-    broadcast(room.code, room.state);
-  });
+    const playerId = getPlayerIdBySocket(socket.id);
+    if (!room || !playerId) return;
 
-  // Client signals it has seen the round result and wants to continue
-  socket.on('game:ready', () => {
-    const room = getRoomBySocket(socket.id);
-    if (!room) return;
-    if (room.state.phase === 'round-result') {
-      const newState = advanceAfterResult(room.state);
-      updateRoom(room, newState);
-      broadcast(room.code, newState);
+    room.shopReadyPlayerIds.add(playerId);
+    const livingPlayers = room.state.players.filter(p => p.status !== 'dead');
+    if (livingPlayers.every(p => room.shopReadyPlayerIds.has(p.id))) {
+      room.shopReadyPlayerIds.clear();
+      updateRoom(room, endShop(room.state));
     }
+    broadcast(room.code, room.state);
   });
 
   socket.on('disconnect', () => {

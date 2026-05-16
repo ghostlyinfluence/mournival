@@ -1,9 +1,13 @@
 import { GameState, ClassName } from '@mournival/shared';
-import { applyClassToPlayer, createGameState, initPlayer, startCombat } from '@mournival/shared';
+import { applyClassToPlayer, createGameState, initPlayer, startFloor } from '@mournival/shared';
 
 export interface Room {
   code: string;
   state: GameState;
+  /** Tracks which players have explicitly selected a class via game:select-class */
+  confirmedClassPlayerIds: Set<string>;
+  /** Tracks which living players have pressed "Continue" in the shop */
+  shopReadyPlayerIds: Set<string>;
 }
 
 const rooms = new Map<string, Room>();
@@ -11,14 +15,18 @@ const socketToRoom = new Map<string, string>();
 const socketToPlayer = new Map<string, string>();
 
 function generateCode(): string {
-  return Math.random().toString(36).slice(2, 7).toUpperCase();
+  let code: string;
+  do {
+    code = Math.random().toString(36).slice(2, 7).toUpperCase();
+  } while (rooms.has(code));
+  return code;
 }
 
 export function createRoom(socketId: string, playerName: string): Room {
   const code = generateCode();
   const player = initPlayer(socketId, playerName);
   const state = createGameState(code, [player]);
-  const room: Room = { code, state };
+  const room: Room = { code, state, confirmedClassPlayerIds: new Set(), shopReadyPlayerIds: new Set() };
   rooms.set(code, room);
   socketToRoom.set(socketId, code);
   socketToPlayer.set(socketId, socketId);
@@ -53,6 +61,8 @@ export function removeSocket(socketId: string): Room | undefined {
   const room = getRoomBySocket(socketId);
   if (room) {
     room.state = { ...room.state, players: room.state.players.filter(p => p.id !== socketId) };
+    room.confirmedClassPlayerIds.delete(socketId);
+    room.shopReadyPlayerIds.delete(socketId);
     socketToRoom.delete(socketId);
     socketToPlayer.delete(socketId);
     if (room.state.players.length === 0) { rooms.delete(room.code); return undefined; }
@@ -61,6 +71,7 @@ export function removeSocket(socketId: string): Room | undefined {
 }
 
 export function setClass(room: Room, playerId: string, className: ClassName): Room {
+  room.confirmedClassPlayerIds.add(playerId);
   room.state = {
     ...room.state,
     players: room.state.players.map(p =>
@@ -71,8 +82,13 @@ export function setClass(room: Room, playerId: string, className: ClassName): Ro
   return room;
 }
 
+export function allClassesConfirmed(room: Room): boolean {
+  return room.state.players.every(p => room.confirmedClassPlayerIds.has(p.id));
+}
+
 export function startGame(room: Room): Room {
-  room.state = startCombat(room.state);
+  room.confirmedClassPlayerIds.clear();
+  room.state = startFloor(room.state);
   return room;
 }
 

@@ -20,10 +20,14 @@ interface GameStore {
   discard: () => void;
   buyJoker: (jokerId: string) => void;
   buyConsumable: (consumableId: string) => void;
+  buyPack: (packId: string) => void;
+  pickFromPack: (itemId: string) => void;
+  closePack: () => void;
   setActiveConsumable: (consumableId: string | null) => void;
   useConsumable: (consumableId: string, targetCardIds: string[]) => void;
   endShop: () => void;
   continueAfterResult: () => void;
+  selectNode: (nodeId: string) => void;
 }
 
 export const useGameStore = create<GameStore>((set, get) => {
@@ -68,6 +72,12 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     buyConsumable(consumableId) { socket.emit('game:buy-consumable', consumableId); },
 
+    buyPack(packId) { socket.emit('game:buy-pack', packId); },
+
+    pickFromPack(itemId) { socket.emit('game:pick-from-pack', itemId); },
+
+    closePack() { socket.emit('game:close-pack'); },
+
     setActiveConsumable(consumableId) { set({ activeConsumableId: consumableId }); },
 
     useConsumable(consumableId, targetCardIds) {
@@ -78,5 +88,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     endShop() { socket.emit('game:end-shop'); },
 
     continueAfterResult() { socket.emit('game:ready'); },
+
+    selectNode(nodeId) { socket.emit('game:select-node', nodeId); },
   };
 });

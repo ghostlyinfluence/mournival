@@ -41,8 +41,10 @@ export interface JokerDefinition {
   addMult?: number;
   xMult?: number;
   onHandType?: HandType;
+  /** When true, onHandType acts as a minimum threshold — any hand of equal or higher rank qualifies. */
+  handTypeOrBetter?: boolean;
   onSuit?: Suit;
-  onRank?: 'face' | 'ace' | 'number';
+  onRank?: 'face' | 'ace' | 'number' | 'king';
 }
 
 export type JokerTrigger =
@@ -81,12 +83,56 @@ export interface ClassDefinition {
   passiveLabel: string;
 }
 
+// ── Packs ─────────────────────────────────────────────────────────────────────
+export type PackType = 'joker' | 'arcana' | 'celestial' | 'card';
+
+export interface ShopPack {
+  id: string;
+  type: PackType;
+  name: string;
+  description: string;
+  cost: number;
+}
+
+export interface OpenPackState {
+  packType: PackType;
+  jokerContents: JokerDefinition[];
+  consumableContents: ConsumableCard[];
+  cardContents: Card[];
+  picksRemaining: number;
+}
+
+// ── Map ───────────────────────────────────────────────────────────────────────
+export type NodeType = 'combat' | 'elite' | 'shop' | 'rest' | 'boss';
+
+export interface MapNode {
+  id: string;
+  row: number;
+  col: number;
+  type: NodeType;
+  connections: string[];
+  visited: boolean;
+  available: boolean;
+}
+
+export interface FloorMap {
+  nodes: MapNode[];
+  currentNodeId: string | null;
+}
+
 // ── Monster ───────────────────────────────────────────────────────────────────
 export type AttackAction =
   | { type: 'attack'; damage: number }
   | { type: 'attack-all'; damage: number }
-  | { type: 'buff-self'; label: string }
-  | { type: 'debuff-player'; label: string };
+  | { type: 'buff-self'; label: string; shield?: number }
+  | {
+      type: 'debuff-player';
+      label: string;
+      stealGold?: number;       // steal from one target player
+      reduceHands?: number;     // reduce handsLeft for all living players
+      reduceMaxHP?: number;     // reduce maxHP of a random living player
+      discardRandom?: number;   // discard N random cards from one target player
+    };
 
 export interface MonsterDefinition {
   id: string;
@@ -117,6 +163,7 @@ export interface Player {
   handsLeft: number;
   discardsLeft: number;
   status: 'picking' | 'ready' | 'dead';
+  openPack?: OpenPackState;
 }
 
 // ── Game state ───────────────────────────────────────────────────────────────
@@ -133,6 +180,7 @@ export interface RoundResult {
   monsterAction: AttackAction;
   damageToPlayers: { playerId: string; damage: number }[];
   goldGained: { playerId: string; amount: number }[];
+  interestGained: { playerId: string; amount: number }[];
   brokenCards: string[];
   mournivalTriggered: boolean; // all active players played four of a kind or better
   monsterDied: boolean;
@@ -141,6 +189,7 @@ export interface RoundResult {
 export type GamePhase =
   | 'lobby'
   | 'class-select'
+  | 'map'
   | 'combat'
   | 'round-result'
   | 'shop'
@@ -157,6 +206,8 @@ export interface GameState {
   lastRoundResult: RoundResult | null;
   shopJokers: JokerDefinition[];
   shopConsumables: ConsumableCard[];
+  shopPacks: ShopPack[];
+  floorMap: FloorMap | null;
   log: string[];
 }
 
@@ -176,6 +227,10 @@ export interface ClientToServerEvents {
   'game:discard': () => void;
   'game:buy-joker': (jokerId: string) => void;
   'game:buy-consumable': (consumableId: string) => void;
+  'game:buy-pack': (packId: string) => void;
+  'game:pick-from-pack': (itemId: string) => void;
+  'game:close-pack': () => void;
+  'game:select-node': (nodeId: string) => void;
   'game:use-consumable': (consumableId: string, targetCardIds: string[]) => void;
   'game:end-shop': () => void;
 }

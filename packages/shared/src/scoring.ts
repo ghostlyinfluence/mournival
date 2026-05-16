@@ -1,6 +1,6 @@
 import { Card, HandType, JokerDefinition, Player } from './types.js';
 import { RANK_CHIP_VALUE, isFaceCard } from './cards.js';
-import { HandEvaluation } from './hands.js';
+import { HandEvaluation, HAND_RANK } from './hands.js';
 import { CLASS_DEFINITIONS } from './classes.js';
 import { HAND_LEVEL_BONUS } from './consumables.js';
 
@@ -151,7 +151,11 @@ function applyJoker(
   playedCards: Card[],
   apply: (chips?: number, mult?: number, xMult?: number) => void,
 ) {
-  const handMatches = !joker.onHandType || joker.onHandType === handType;
+  const handMatches = !joker.onHandType || (
+    joker.handTypeOrBetter
+      ? HAND_RANK[handType] >= HAND_RANK[joker.onHandType]
+      : joker.onHandType === handType
+  );
 
   if (joker.trigger === 'always' && handMatches) {
     apply(joker.addChips, joker.addMult, joker.xMult);
@@ -160,7 +164,7 @@ function applyJoker(
   if (joker.trigger === 'per-scoring-card') {
     for (const card of scoringCards) {
       if (handMatches) {
-        const rankType = card.rank === 'A' ? 'ace' : isFaceCard(card.rank) ? 'face' : 'number';
+        const rankType = card.rank === 'A' ? 'ace' : card.rank === 'K' ? 'king' : isFaceCard(card.rank) ? 'face' : 'number';
         if (!joker.onRank || joker.onRank === rankType) apply(joker.addChips, joker.addMult, joker.xMult);
       }
     }

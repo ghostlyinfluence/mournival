@@ -229,7 +229,7 @@ export function makeCelestial(defId: string): ConsumableCard | null {
     defId: def.defId,
     name: def.name,
     type: 'celestial',
-    description: `Level up ${def.levelsHandType.replace(/-/g, ' ')} — adds ${HAND_LEVEL_BONUS[def.levelsHandType].chips} chips and +${HAND_LEVEL_BONUS[def.levelsHandType].mult} mult permanently.`,
+    description: `Level up ${def.levelsHandType.replace(/-/g, ' ')} — +${HAND_LEVEL_BONUS[def.levelsHandType].chips} chips and +${HAND_LEVEL_BONUS[def.levelsHandType].mult} mult permanently.`,
     flavour: def.flavour,
     cost: def.cost,
     levelsHandType: def.levelsHandType,
@@ -249,19 +249,21 @@ export function randomCelestial(): ConsumableCard {
 }
 
 // ── Shop offerings ────────────────────────────────────────────────────────
-export function getShopConsumables(floor: number): ConsumableCard[] {
+export function sampleArcanas(floor: number, count: number): ConsumableCard[] {
   const arcanaRarityWeights =
     floor === 1
       ? { common: 60, uncommon: 30, rare: 10 }
       : { common: 40, uncommon: 35, rare: 25 };
+  return weightedSample(ARCANA_DEFS, arcanaRarityWeights, count).map(d => makeArcana(d.defId)!);
+}
 
-  const pickedArcana = weightedSample(ARCANA_DEFS, arcanaRarityWeights, 2);
-  const pickedCelestial = weightedSampleCelestial(CELESTIAL_DEFS, floor, 1);
+export function sampleCelestials(floor: number, count: number): ConsumableCard[] {
+  return weightedSampleCelestial(CELESTIAL_DEFS, floor, count).map(d => makeCelestial(d.defId)!);
+}
 
-  return [
-    ...pickedArcana.map(d => makeArcana(d.defId)!),
-    ...pickedCelestial.map(d => makeCelestial(d.defId)!),
-  ];
+/** @deprecated Use sampleArcanas / sampleCelestials directly */
+export function getShopConsumables(floor: number): ConsumableCard[] {
+  return [...sampleArcanas(floor, 2), ...sampleCelestials(floor, 1)];
 }
 
 function weightedSample<T extends { rarity: string }>(
@@ -274,7 +276,12 @@ function weightedSample<T extends { rarity: string }>(
     const w = weights[item.rarity] ?? 0;
     for (let i = 0; i < w; i++) weighted.push(item);
   }
-  const shuffled = [...weighted].sort(() => Math.random() - 0.5);
+  // Fisher-Yates shuffle — sort-based shuffle is biased.
+  const shuffled = [...weighted];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
   const picked: T[] = [];
   const seen = new Set<string>();
   for (const item of shuffled) {
@@ -360,8 +367,8 @@ const ARCANA_EFFECTS: Record<string, EffectFn> = {
     const allTypes: HandType[] = [
       'high-card', 'pair', 'two-pair', 'three-of-a-kind', 'straight',
       'flush', 'full-house', 'four-of-a-kind', 'straight-flush', 'royal-flush',
+      'five-of-a-kind', 'flush-house', 'flush-five',
     ];
-    // Prefer unlevel'd types
     const unleveled = allTypes.filter(ht => !(player.handLevels[ht] ?? 0));
     const pool = unleveled.length ? unleveled : allTypes;
     const target = pool[Math.floor(Math.random() * pool.length)];
@@ -377,10 +384,8 @@ const ARCANA_EFFECTS: Record<string, EffectFn> = {
   },
 
   'arcana-jester': (state, playerId) => {
-    const player = state.players.find(p => p.id === playerId)!;
-    if (player.consumables.length >= 2) {
-      return { ...state, log: [...state.log, 'The Jester: consumable slots full.'] };
-    }
+    // The source card is removed by the caller after this effect runs, so the effective
+    // post-use slot count is player.consumables.length - 1. We can always add one more.
     const card = randomArcana();
     return {
       ...state,
@@ -392,11 +397,8 @@ const ARCANA_EFFECTS: Record<string, EffectFn> = {
   },
 
   'arcana-fates': (state, playerId) => {
-    // Gives a random different arcana — the caller already removes the source card
-    const player = state.players.find(p => p.id === playerId)!;
-    if (player.consumables.length >= 2) {
-      return { ...state, log: [...state.log, 'The Fates: consumable slots full.'] };
-    }
+    // The source card is removed by the caller after this runs, so there is always
+    // room for the replacement — no need to check slot count here.
     const card = randomArcana();
     return {
       ...state,

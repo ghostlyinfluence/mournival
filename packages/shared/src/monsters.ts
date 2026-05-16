@@ -5,11 +5,11 @@ export const MONSTERS: MonsterDefinition[] = [
   {
     id: 'goblin',
     name: 'Goblin Scrapper',
-    maxHP: 60,
+    maxHP: 300,
     attackPattern: [
       { type: 'attack', damage: 8 },
       { type: 'attack', damage: 8 },
-      { type: 'buff-self', label: 'Frenzy (+4 atk next turn)' },
+      { type: 'buff-self', label: 'Frenzy (next attack +4 dmg)', shield: 0 },
       { type: 'attack', damage: 12 },
     ],
     rewardGold: 4,
@@ -18,7 +18,7 @@ export const MONSTERS: MonsterDefinition[] = [
   {
     id: 'skeleton',
     name: 'Skeleton Archer',
-    maxHP: 45,
+    maxHP: 260,
     attackPattern: [
       { type: 'attack', damage: 6 },
       { type: 'attack-all', damage: 4 },
@@ -31,11 +31,11 @@ export const MONSTERS: MonsterDefinition[] = [
   {
     id: 'slime',
     name: 'Ooze Cube',
-    maxHP: 80,
+    maxHP: 380,
     attackPattern: [
       { type: 'attack', damage: 5 },
       { type: 'attack', damage: 5 },
-      { type: 'debuff-player', label: 'Acid Splash (discard 2 cards next hand)' },
+      { type: 'debuff-player', label: 'Acid Splash (discard 2 random cards)', discardRandom: 2 },
     ],
     immunity: 'high-card',
     rewardGold: 5,
@@ -45,27 +45,27 @@ export const MONSTERS: MonsterDefinition[] = [
   {
     id: 'orc-warchief',
     name: 'Orc Warchief',
-    maxHP: 180,
+    maxHP: 1200,
     attackPattern: [
-      { type: 'attack', damage: 14 },
-      { type: 'attack', damage: 14 },
-      { type: 'attack-all', damage: 10 },
-      { type: 'buff-self', label: 'Battle Cry (immune to pairs next round)' },
       { type: 'attack', damage: 20 },
+      { type: 'attack', damage: 20 },
+      { type: 'attack-all', damage: 14 },
+      { type: 'buff-self', label: 'Battle Cry (+20 shield)', shield: 20 },
+      { type: 'attack', damage: 28 },
     ],
     weakness: 'four-of-a-kind',
-    rewardGold: 12,
+    rewardGold: 20,
     isBoss: true,
   },
   // Floor 2
   {
     id: 'vampire',
     name: 'Vampire Noble',
-    maxHP: 100,
+    maxHP: 300,
     attackPattern: [
       { type: 'attack', damage: 12 },
       { type: 'attack', damage: 12 },
-      { type: 'debuff-player', label: 'Blood Drain (steal 2 gold)' },
+      { type: 'debuff-player', label: 'Blood Drain (steal 2 gold)', stealGold: 2 },
       { type: 'attack', damage: 16 },
     ],
     weakness: 'straight',
@@ -75,10 +75,10 @@ export const MONSTERS: MonsterDefinition[] = [
   {
     id: 'golem',
     name: 'Stone Golem',
-    maxHP: 140,
+    maxHP: 360,
     attackPattern: [
       { type: 'attack', damage: 18 },
-      { type: 'buff-self', label: 'Stone Skin (+20 shield)' },
+      { type: 'buff-self', label: 'Stone Skin (+20 shield)', shield: 20 },
       { type: 'attack', damage: 18 },
     ],
     immunity: 'high-card',
@@ -88,11 +88,11 @@ export const MONSTERS: MonsterDefinition[] = [
   {
     id: 'banshee',
     name: 'Wailing Banshee',
-    maxHP: 90,
+    maxHP: 280,
     attackPattern: [
       { type: 'attack-all', damage: 8 },
       { type: 'attack-all', damage: 8 },
-      { type: 'debuff-player', label: 'Wail (reduce hands left by 1)' },
+      { type: 'debuff-player', label: 'Wail (all players lose 1 hand)', reduceHands: 1 },
     ],
     weakness: 'full-house',
     rewardGold: 8,
@@ -102,21 +102,68 @@ export const MONSTERS: MonsterDefinition[] = [
   {
     id: 'lich',
     name: 'The Lich',
-    maxHP: 280,
+    maxHP: 3000,
     attackPattern: [
-      { type: 'attack', damage: 18 },
-      { type: 'attack-all', damage: 14 },
-      { type: 'buff-self', label: 'Phylactery (revive with 40 HP if slain this round)' },
-      { type: 'attack', damage: 22 },
-      { type: 'debuff-player', label: 'Curse (random player loses 10 max HP)' },
-      { type: 'attack-all', damage: 18 },
+      { type: 'attack', damage: 28 },
+      { type: 'attack-all', damage: 20 },
+      { type: 'buff-self', label: 'Phylactery (+40 shield)', shield: 40 },
+      { type: 'attack', damage: 35 },
+      { type: 'debuff-player', label: 'Curse (random player −10 max HP)', reduceMaxHP: 10 },
+      { type: 'attack-all', damage: 25 },
     ],
     weakness: 'royal-flush',
     immunity: 'pair',
-    rewardGold: 20,
+    rewardGold: 30,
     isBoss: true,
   },
 ];
+
+function scaleMonster(def: MonsterDefinition, hpFactor: number, attackFactor: number): MonsterDefinition {
+  return {
+    ...def,
+    maxHP: Math.round(def.maxHP * hpFactor),
+    attackPattern: def.attackPattern.map(a => {
+      if (a.type === 'attack') return { ...a, damage: Math.round(a.damage * attackFactor) };
+      if (a.type === 'attack-all') return { ...a, damage: Math.round(a.damage * attackFactor) };
+      return a;
+    }),
+    rewardGold: Math.round(def.rewardGold * hpFactor),
+  };
+}
+
+const FLOOR1_POOL = ['goblin', 'skeleton', 'slime'] as const;
+const FLOOR2_POOL = ['vampire', 'golem', 'banshee'] as const;
+
+/** Select and scale a monster for a map node. depth is the node's row (0–14). */
+export function getMonsterForNode(
+  floor: number,
+  depth: number,
+  isElite: boolean,
+  isBoss: boolean,
+): MonsterDefinition {
+  if (isBoss) {
+    return floor === 1
+      ? MONSTERS.find(m => m.id === 'orc-warchief')!
+      : MONSTERS.find(m => m.id === 'lich')!;
+  }
+
+  // depth 0 → 1.0×, depth 14 → 2.4×; floor 2 scales HP 2.5× and attacks 1.3×
+  const depthFactor = 1.0 + depth * 0.1;
+  const eliteFactor = isElite ? 1.5 : 1.0;
+  const floorFactor = floor === 1 ? 1.0 : 2.5;
+  const hpFactor = depthFactor * eliteFactor * floorFactor;
+  const attackFactor = depthFactor * (floor === 1 ? 1.0 : 1.3) * (isElite ? 1.2 : 1.0);
+
+  const pool = floor === 1 ? FLOOR1_POOL : FLOOR2_POOL;
+  const baseId = pool[depth % pool.length];
+  const base = MONSTERS.find(m => m.id === baseId)!;
+  const scaled = scaleMonster(base, hpFactor, attackFactor);
+
+  if (isElite) {
+    return { ...scaled, name: `Elite ${scaled.name}`, rewardGold: scaled.rewardGold + 4 };
+  }
+  return scaled;
+}
 
 export function getMonsterForRoom(floor: number, room: number): MonsterDefinition {
   if (floor === 1) {
@@ -131,6 +178,5 @@ export function getMonsterForRoom(floor: number, room: number): MonsterDefinitio
       ? MONSTERS.find(m => m.id === 'vampire')!
       : MONSTERS.find(m => m.id === 'golem')!;
   }
-  // Default fallback
   return MONSTERS[0];
 }

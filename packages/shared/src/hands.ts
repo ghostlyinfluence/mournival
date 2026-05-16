@@ -225,6 +225,22 @@ export function evaluateHand(cards: Card[]): HandEvaluation {
   return evaluateNatural(cards);
 }
 
+export const HAND_RANK: Record<HandType, number> = {
+  'high-card':       0,
+  'pair':            1,
+  'two-pair':        2,
+  'three-of-a-kind': 3,
+  'straight':        4,
+  'flush':           5,
+  'full-house':      6,
+  'four-of-a-kind':  7,
+  'straight-flush':  8,
+  'royal-flush':     9,
+  'five-of-a-kind':  10,
+  'flush-house':     11,
+  'flush-five':      12,
+};
+
 export const HAND_LABEL: Record<HandType, string> = {
   'high-card':       'High Card',
   'pair':            'Pair',

@@ -15,41 +15,42 @@ export const JOKER_POOL: JokerDefinition[] = [
   {
     id: 'steel-buckler',
     name: 'Steel Buckler',
-    description: '+25 chips every hand',
+    description: '+30 chips every hand',
     rarity: 'common',
     cost: 3,
     trigger: 'always',
-    addChips: 25,
+    addChips: 30,
   },
   {
     id: 'blood-ruby',
     name: 'Blood Ruby',
-    description: '+2 mult for each heart in scoring cards',
+    description: '+1 mult for each scoring heart',
     rarity: 'common',
     cost: 4,
     trigger: 'per-suit-card',
     onSuit: 'hearts',
-    addMult: 2,
+    addMult: 1,
   },
   {
     id: 'iron-grip',
     name: 'Iron Grip',
-    description: '+3 mult for three of a kind or better',
+    description: '+4 mult for three of a kind or better',
     rarity: 'common',
     cost: 4,
     trigger: 'always',
     onHandType: 'three-of-a-kind',
-    addMult: 3,
+    handTypeOrBetter: true,
+    addMult: 4,
   },
   {
     id: 'silver-spade',
     name: 'Silver Spade',
-    description: '+2 mult for each spade in scoring cards',
+    description: '+1 mult for each scoring spade',
     rarity: 'common',
     cost: 4,
     trigger: 'per-suit-card',
     onSuit: 'spades',
-    addMult: 2,
+    addMult: 1,
   },
   // Uncommon
   {
@@ -65,42 +66,42 @@ export const JOKER_POOL: JokerDefinition[] = [
   {
     id: 'rogues-blade',
     name: "Rogue's Blade",
-    description: '+5 mult when playing a straight',
+    description: '+7 mult when playing a straight',
     rarity: 'uncommon',
     cost: 6,
     trigger: 'always',
     onHandType: 'straight',
-    addMult: 5,
+    addMult: 7,
   },
   {
     id: 'golden-horseshoe',
     name: 'Golden Horseshoe',
-    description: '+8 chips for each scoring ace',
+    description: '+15 chips for each scoring ace',
     rarity: 'uncommon',
     cost: 5,
     trigger: 'per-scoring-card',
     onRank: 'ace',
-    addChips: 8,
+    addChips: 15,
   },
   {
     id: 'fools-cap',
     name: "Fool's Cap",
-    description: '+6 mult for each scoring face card',
+    description: '+3 mult for each scoring Jack or Queen',
     rarity: 'uncommon',
     cost: 6,
     trigger: 'per-scoring-card',
     onRank: 'face',
-    addMult: 6,
+    addMult: 3,
   },
   {
     id: 'war-drum',
     name: 'War Drum',
-    description: '+8 mult for full house',
+    description: '+10 mult for full house',
     rarity: 'uncommon',
     cost: 7,
     trigger: 'always',
     onHandType: 'full-house',
-    addMult: 8,
+    addMult: 10,
   },
   // Rare
   {
@@ -116,27 +117,39 @@ export const JOKER_POOL: JokerDefinition[] = [
   {
     id: 'ancient-crown',
     name: 'Ancient Crown',
-    description: '×3 mult for four of a kind or better',
+    description: '×2 mult for four of a kind or better',
     rarity: 'rare',
     cost: 10,
     trigger: 'always',
     onHandType: 'four-of-a-kind',
-    xMult: 3,
+    handTypeOrBetter: true,
+    xMult: 2,
+  },
+  {
+    id: 'kings-gambit',
+    name: "King's Gambit",
+    description: '×2 mult for each scoring King',
+    rarity: 'rare',
+    cost: 10,
+    trigger: 'per-scoring-card',
+    onRank: 'king',
+    xMult: 2,
   },
   // Legendary
   {
     id: 'mournival',
     name: 'The Mournival',
-    description: '×4 mult — but only when playing four of a kind',
+    description: '×4 mult for four of a kind or better',
     rarity: 'legendary',
     cost: 14,
     trigger: 'always',
     onHandType: 'four-of-a-kind',
+    handTypeOrBetter: true,
     xMult: 4,
   },
 ];
 
-export function getShopJokers(floor: number, _room: number): JokerDefinition[] {
+export function sampleJokers(floor: number, count: number): JokerDefinition[] {
   const rarityWeights =
     floor === 1
       ? { common: 60, uncommon: 30, rare: 9, legendary: 1 }
@@ -148,15 +161,21 @@ export function getShopJokers(floor: number, _room: number): JokerDefinition[] {
     for (let i = 0; i < w; i++) weighted.push(j);
   }
 
-  const shuffled = [...weighted].sort(() => Math.random() - 0.5);
+  const shuffled = [...weighted];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
   const picked: JokerDefinition[] = [];
   const seen = new Set<string>();
   for (const j of shuffled) {
-    if (!seen.has(j.id)) {
-      picked.push(j);
-      seen.add(j.id);
-    }
-    if (picked.length === 3) break;
+    if (!seen.has(j.id)) { picked.push(j); seen.add(j.id); }
+    if (picked.length === count) break;
   }
   return picked;
+}
+
+/** @deprecated Use sampleJokers directly */
+export function getShopJokers(floor: number, _room: number): JokerDefinition[] {
+  return sampleJokers(floor, 3);
 }

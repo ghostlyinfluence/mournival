@@ -3,11 +3,6 @@ import { Card, Rank, Suit } from './types.js';
 export const SUITS: Suit[] = ['spades', 'hearts', 'diamonds', 'clubs'];
 export const RANKS: Rank[] = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
 
-export const RANK_VALUE: Record<Rank, number> = {
-  '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8,
-  '9': 9, '10': 10, 'J': 10, 'Q': 10, 'K': 10, 'A': 11,
-};
-
 export const RANK_CHIP_VALUE: Record<Rank, number> = {
   '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8,
   '9': 9, '10': 10, 'J': 10, 'Q': 10, 'K': 10, 'A': 11,
@@ -47,4 +42,19 @@ export function shuffleDeck(deck: Card[]): Card[] {
 
 export function dealCards(deck: Card[], n: number): { dealt: Card[]; remaining: Card[] } {
   return { dealt: deck.slice(0, n), remaining: deck.slice(n) };
+}
+
+export function randomPackCards(count: number): Card[] {
+  const enhancements: (Card['enhancement'])[] = ['bonus', 'mult', 'glass', 'steel', 'gold', 'wild'];
+  const uid = () => Math.random().toString(36).slice(2, 7);
+  const cards: Card[] = [];
+  for (let i = 0; i < count; i++) {
+    const suit = SUITS[Math.floor(Math.random() * SUITS.length)];
+    const rank = RANKS[Math.floor(Math.random() * RANKS.length)];
+    const enhancement = Math.random() < 0.65
+      ? enhancements[Math.floor(Math.random() * enhancements.length)]
+      : undefined;
+    cards.push({ id: `pack-${suit[0]}${rank}-${uid()}`, suit, rank, enhancement });
+  }
+  return cards;
 }

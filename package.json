@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "concurrently -n server,client -c cyan,magenta \"npm run dev -w @mournival/server\" \"npm run dev -w @mournival/client\"",
     "build": "npm run build -w @mournival/shared && npm run build -w @mournival/server && npm run build -w @mournival/client",
-    "typecheck": "npm run typecheck -w @mournival/shared && npm run typecheck -w @mournival/server && npm run typecheck -w @mournival/client"
+    "typecheck": "npm run typecheck -w @mournival/shared && npm run typecheck -w @mournival/server && npm run typecheck -w @mournival/client",
+    "test": "npm run test -w @mournival/shared",
+    "coverage": "npm run coverage -w @mournival/shared"
   },
   "devDependencies": {
     "concurrently": "^9.0.0",

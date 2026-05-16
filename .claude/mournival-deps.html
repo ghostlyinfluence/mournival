@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mournival — Dependency Graph</title>
+<style>
+  :root {
+    --bg:      #080f12;
+    --bg2:     #0f1c22;
+    --bg3:     #162632;
+    --border:  #1e3a46;
+    --text:    #dde8ec;
+    --dim:     #7a9aaa;
+    --gold:    #d4aa40;
+    --cyan:    #3ec8d8;
+    --green:   #3ab87a;
+    --purple:  #8860c8;
+    --red:     #b83030;
+    --blue:    #2a8fcc;
+    --orange:  #c87830;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 13px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  header {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+  header h1 { font-size: 16px; color: var(--gold); letter-spacing: 0.08em; }
+  header p { color: var(--dim); font-size: 12px; }
+
+  .controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-left: auto;
+    flex-wrap: wrap;
+  }
+  .controls label { color: var(--dim); font-size: 11px; }
+  .filter-btn {
+    padding: 3px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--bg3);
+    color: var(--dim);
+    cursor: pointer;
+    font-size: 11px;
+    transition: all 0.15s;
+  }
+  .filter-btn:hover { border-color: var(--cyan); color: var(--text); }
+  .filter-btn.active { background: var(--bg); color: var(--text); }
+  .filter-btn.g-workspace.active  { border-color: var(--gold);   color: var(--gold); }
+  .filter-btn.g-shared.active    { border-color: var(--cyan);   color: var(--cyan); }
+  .filter-btn.g-client.active    { border-color: var(--green);  color: var(--green); }
+  .filter-btn.g-server.active    { border-color: var(--orange); color: var(--orange); }
+  .filter-btn.g-external.active  { border-color: var(--purple); color: var(--purple); }
+  .filter-btn.g-test.active      { border-color: var(--red);    color: var(--red); }
+
+  .main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  #graph-container {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    cursor: grab;
+  }
+  #graph-container:active { cursor: grabbing; }
+
+  svg#graph {
+    width: 100%;
+    height: 100%;
+  }
+
+  .sidebar {
+    width: 280px;
+    flex-shrink: 0;
+    background: var(--bg2);
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .sidebar h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--dim); }
+  .info-box {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+  }
+  .info-label { font-size: 11px; color: var(--dim); margin-bottom: 4px; }
+  .info-name { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+  .info-desc { color: var(--dim); font-size: 12px; line-height: 1.5; }
+  .info-group {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .edge-list { display: flex; flex-direction: column; gap: 4px; }
+  .edge-item {
+    font-size: 11px;
+    padding: 3px 6px;
+    border-radius: 3px;
+    background: var(--bg);
+    border-left: 2px solid var(--border);
+    color: var(--dim);
+    cursor: pointer;
+    transition: border-color 0.1s;
+  }
+  .edge-item:hover { border-color: var(--cyan); color: var(--text); }
+  .edge-direction { font-size: 10px; opacity: 0.6; }
+
+  .legend { display: flex; flex-direction: column; gap: 6px; }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--dim); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .legend-line { width: 24px; height: 2px; flex-shrink: 0; }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .stat-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px;
+    text-align: center;
+  }
+  .stat-num { font-size: 20px; font-weight: 700; color: var(--cyan); }
+  .stat-label { font-size: 10px; color: var(--dim); }
+
+  .hint { font-size: 11px; color: var(--dim); line-height: 1.5; }
+
+  /* SVG node styles applied via JS */
+  .node-circle { cursor: pointer; transition: filter 0.15s; }
+  .node-circle:hover { filter: brightness(1.3); }
+  .node-label { pointer-events: none; font-family: 'Segoe UI', system-ui, sans-serif; }
+  .edge-line { pointer-events: none; }
+  .arrow { pointer-events: none; }
+
+  .zoom-controls {
+    position: absolute;
+    bottom: 16px;
+    right: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .zoom-btn {
+    width: 32px; height: 32px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    cursor: pointer;
+    font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+    transition: border-color 0.15s;
+  }
+  .zoom-btn:hover { border-color: var(--cyan); }
+
+  .search-box {
+    padding: 5px 10px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-size: 12px;
+    width: 160px;
+    outline: none;
+  }
+  .search-box:focus { border-color: var(--cyan); }
+  .search-box::placeholder { color: var(--dim); }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>MOURNIVAL — Dependency Graph</h1>
+    <p>Interactive module dependency visualization · npm workspaces monorepo</p>
+  </div>
+  <div class="controls">
+    <label>Filter:</label>
+    <button class="filter-btn g-workspace active" data-group="workspace">Workspace</button>
+    <button class="filter-btn g-shared active" data-group="shared">Shared</button>
+    <button class="filter-btn g-client active" data-group="client">Client</button>
+    <button class="filter-btn g-server active" data-group="server">Server</button>
+    <button class="filter-btn g-external active" data-group="external">External</button>
+    <button class="filter-btn g-test active" data-group="test">Tests</button>
+    <input class="search-box" type="text" placeholder="Search nodes…" id="searchInput" />
+  </div>
+</header>
+
+<div class="main">
+  <div id="graph-container">
+    <svg id="graph"></svg>
+    <div class="zoom-controls">
+      <button class="zoom-btn" id="zoomIn">+</button>
+      <button class="zoom-btn" id="zoomFit">⊡</button>
+      <button class="zoom-btn" id="zoomOut">−</button>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div>
+      <h2>Statistics</h2>
+      <div class="stats-grid" id="stats"></div>
+    </div>
+
+    <div>
+      <h2>Selected Node</h2>
+      <div class="info-box" id="nodeInfo">
+        <div class="info-desc">Click any node to inspect it.</div>
+      </div>
+    </div>
+
+    <div id="edgesSection" style="display:none">
+      <h2>Connections</h2>
+      <div style="font-size:11px; color:var(--dim); margin-bottom:6px;">Outgoing (imports)</div>
+      <div class="edge-list" id="outEdges"></div>
+      <div style="font-size:11px; color:var(--dim); margin:8px 0 6px;">Incoming (imported by)</div>
+      <div class="edge-list" id="inEdges"></div>
+    </div>
+
+    <div>
+      <h2>Legend — Node Groups</h2>
+      <div class="legend" id="groupLegend"></div>
+    </div>
+
+    <div>
+      <h2>Legend — Edge Types</h2>
+      <div class="legend" id="edgeLegend"></div>
+    </div>
+
+    <div>
+      <h2>Interactions</h2>
+      <p class="hint">
+        · Click a node to inspect it<br>
+        · Drag nodes to reposition<br>
+        · Scroll / pinch to zoom<br>
+        · Drag background to pan<br>
+        · Filter buttons toggle groups<br>
+        · Search highlights matching nodes
+      </p>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Data ───────────────────────────────────────────────────────────────────
+
+const GROUP_COLOR = {
+  workspace: '#d4aa40',
+  shared:    '#3ec8d8',
+  client:    '#3ab87a',
+  server:    '#c87830',
+  external:  '#8860c8',
+  test:      '#b83030',
+};
+
+const EDGE_COLOR = {
+  workspace:    '#d4aa4088',
+  dependency:   '#3ec8d888',
+  devDependency:'#7a9aaa55',
+  import:       '#3ab87a88',
+  reexport:     '#2a8fcc88',
+  testImport:   '#b8303088',
+};
+
+const GRAPH_DATA = {
+  "meta": { "project": "mournival", "generated": "2026-05-14", "description": "Dependency graph of the Mournival monorepo. Nodes are packages and source modules; edges are import relationships. Groups: workspace=top-level npm workspace packages, shared=shared library modules, client=React client modules, server=server modules, external=third-party npm packages, test=test files." },
+  "nodes": [
+    { "id": "root", "label": "mournival (root)", "group": "workspace", "description": "Root npm workspace. Scripts: dev (concurrently), build, typecheck, test, coverage." },
+    { "id": "pkg:shared", "label": "@mournival/shared", "group": "workspace", "description": "Pure TypeScript game logic library. No runtime dependencies — all devDeps. Consumed by both client and server." },
+    { "id": "pkg:client", "label": "@mournival/client", "group": "workspace", "description": "React + Vite SPA. Depends on @mournival/shared, react, react-dom, socket.io-client, zustand." },
+    { "id": "pkg:server", "label": "@mournival/server", "group": "workspace", "description": "Node.js server. Depends on @mournival/shared, express, socket.io, cors." },
+    { "id": "shared:types", "label": "types.ts", "group": "shared", "description": "All TypeScript interfaces and enums: Card, Player, GameState, HandType, ConsumableCard, JokerDefinition, MonsterDefinition, event maps, etc. No imports — pure declarations." },
+    { "id": "shared:cards", "label": "cards.ts", "group": "shared", "description": "Deck creation, shuffling, dealing. Exports: createDeck, shuffleDeck, dealCards, RANK_ORDER, RANK_CHIP_VALUE, SUIT_SYMBOL, isFaceCard." },
+    { "id": "shared:hands", "label": "hands.ts", "group": "shared", "description": "Hand evaluation (13 hand types, wild card greedy algorithm). Exports: evaluateHand, HAND_LABEL, HAND_RANK, HandEvaluation." },
+    { "id": "shared:scoring", "label": "scoring.ts", "group": "shared", "description": "Chips × Mult damage calculation. Applies joker effects, card enhancements, class bonuses, Mournival team combo. Exports: scoreHand." },
+    { "id": "shared:classes", "label": "classes.ts", "group": "shared", "description": "Class definitions (Warrior, Rogue, Mage, Cleric, Ranger). Exports: CLASS_DEFINITIONS, applyClassToPlayer." },
+    { "id": "shared:monsters", "label": "monsters.ts", "group": "shared", "description": "Monster definitions and room selection. Exports: getMonsterForRoom, MONSTER_DEFINITIONS." },
+    { "id": "shared:jokers", "label": "jokers.ts", "group": "shared", "description": "Joker card definitions and shop generation. Exports: JOKER_DEFINITIONS, getShopJokers." },
+    { "id": "shared:consumables", "label": "consumables.ts", "group": "shared", "description": "Arcana (16 effects) and Celestial Stone (13 hand types) consumable definitions, shop generation, and effect application. Exports: makeArcana, makeCelestial, getShopConsumables, applyConsumableEffect, HAND_LEVEL_BONUS." },
+    { "id": "shared:gameLogic", "label": "gameLogic.ts", "group": "shared", "description": "Core state machine: createGameState, initPlayer, selectCards, playHands, discardCards, advanceAfterResult, buyJoker, buyConsumable, useConsumable, startCombat, endShop." },
+    { "id": "shared:index", "label": "index.ts", "group": "shared", "description": "Barrel file — re-exports everything from all shared modules." },
+    { "id": "shared:test:helpers", "label": "__tests__/helpers.ts", "group": "test", "description": "Shared test utilities: card(), makePlayer(), makeCombatState()." },
+    { "id": "shared:test:cards", "label": "__tests__/cards.test.ts", "group": "test", "description": "Tests for cards.ts: deck size, shuffling, dealing." },
+    { "id": "shared:test:hands", "label": "__tests__/hands.test.ts", "group": "test", "description": "Tests for hands.ts: all 13 hand types, wild cards." },
+    { "id": "shared:test:scoring", "label": "__tests__/scoring.test.ts", "group": "test", "description": "Tests for scoring.ts: chip/mult math, joker effects, enhancements, Mournival combo." },
+    { "id": "shared:test:gameLogic", "label": "__tests__/gameLogic.test.ts", "group": "test", "description": "Tests for gameLogic.ts: game lifecycle, play/discard, shop, death." },
+    { "id": "shared:test:consumables", "label": "__tests__/consumables.test.ts", "group": "test", "description": "Tests for consumables.ts: all arcana effects, celestial stones, shop generation." },
+    { "id": "client:main", "label": "main.tsx", "group": "client", "description": "React entry point. Mounts App into DOM, imports index.css." },
+    { "id": "client:app", "label": "App.tsx", "group": "client", "description": "Top-level router component. Renders Lobby → ClassSelect → GameBoard or Shop based on game phase." },
+    { "id": "client:socket", "label": "socket.ts", "group": "client", "description": "Singleton socket.io-client instance typed with ClientToServerEvents / ServerToClientEvents." },
+    { "id": "client:gameStore", "label": "store/gameStore.ts", "group": "client", "description": "Zustand store. Holds GameState, myPlayerId, activeConsumableId. Wires socket events to state updates and emits actions." },
+    { "id": "client:css", "label": "index.css", "group": "client", "description": "Full design system: midnight teal/arcane palette, layout (.board, .board-body, .board-left, .board-center, .board-right), card styles, joker chips, score panel, consumables." },
+    { "id": "client:GameBoard", "label": "GameBoard.tsx", "group": "client", "description": "Root game layout: JokerBar (top) + board-body with left sidebar (monster, players, score), center (HandArea), right (GameLog)." },
+    { "id": "client:HandArea", "label": "HandArea.tsx", "group": "client", "description": "Card hand display, play/discard buttons, consumable targeting mode." },
+    { "id": "client:CardComponent", "label": "CardComponent.tsx", "group": "client", "description": "Single playing card rendering with suit symbol, rank, enhancement badge, selection/disabled states." },
+    { "id": "client:ConsumableTray", "label": "ConsumableTray.tsx", "group": "client", "description": "Row of consumable cards. Click activates targeting mode via gameStore." },
+    { "id": "client:JokerBar", "label": "JokerBar.tsx", "group": "client", "description": "Top strip showing local player's held jokers as chips with rarity color coding." },
+    { "id": "client:ScorePanel", "label": "ScorePanel.tsx", "group": "client", "description": "Live scoring preview in left sidebar. Calls evaluateHand + scoreHand client-side." },
+    { "id": "client:MonsterDisplay", "label": "MonsterDisplay.tsx", "group": "client", "description": "Monster HP bar, floor/room indicator, weakness display." },
+    { "id": "client:PlayerStatusPanel", "label": "PlayerStatusPanel.tsx", "group": "client", "description": "Per-player status card: class, HP, hands/discards remaining, status badge." },
+    { "id": "client:GameLog", "label": "GameLog.tsx", "group": "client", "description": "Scrolling game log with auto-scroll to bottom." },
+    { "id": "client:RoundResultOverlay", "label": "RoundResultOverlay.tsx", "group": "client", "description": "Modal overlay shown after each round: damage dealt, winner, continue button." },
+    { "id": "client:Lobby", "label": "Lobby.tsx", "group": "client", "description": "Room creation/join UI. Emits createRoom/joinRoom socket events." },
+    { "id": "client:ClassSelect", "label": "ClassSelect.tsx", "group": "client", "description": "Class selection screen shown after joining. Emits selectClass event." },
+    { "id": "client:Shop", "label": "Shop.tsx", "group": "client", "description": "Shop phase UI: joker and consumable purchasing, hand level display, end shop button." },
+    { "id": "server:index", "label": "server/index.ts", "group": "server", "description": "Express + socket.io server. Handles all socket events: createRoom, joinRoom, selectClass, selectCards, playHand, discard, buyJoker, buyConsumable, useConsumable, endShop, disconnect." },
+    { "id": "server:rooms", "label": "server/rooms.ts", "group": "server", "description": "In-memory room registry. Manages room creation, player joining, class confirmation, game start." },
+    { "id": "ext:react", "label": "react", "group": "external", "description": "React 18 — UI component library." },
+    { "id": "ext:react-dom", "label": "react-dom", "group": "external", "description": "React DOM renderer." },
+    { "id": "ext:socket.io-client", "label": "socket.io-client", "group": "external", "description": "WebSocket client library (v4)." },
+    { "id": "ext:zustand", "label": "zustand", "group": "external", "description": "Lightweight React state management." },
+    { "id": "ext:socket.io", "label": "socket.io", "group": "external", "description": "WebSocket server library (v4)." },
+    { "id": "ext:express", "label": "express", "group": "external", "description": "HTTP server framework." },
+    { "id": "ext:cors", "label": "cors", "group": "external", "description": "CORS middleware for express." },
+    { "id": "ext:vitest", "label": "vitest", "group": "external", "description": "Test runner (v2) with @vitest/coverage-v8. 80% threshold enforced." },
+    { "id": "ext:vite", "label": "vite", "group": "external", "description": "Build tool and dev server for the client." },
+    { "id": "ext:concurrently", "label": "concurrently", "group": "external", "description": "Runs server and client dev processes in parallel from root." }
+  ],
+  "edges": [
+    { "source": "root", "target": "pkg:shared", "type": "workspace" },
+    { "source": "root", "target": "pkg:client", "type": "workspace" },
+    { "source": "root", "target": "pkg:server", "type": "workspace" },
+    { "source": "root", "target": "ext:concurrently", "type": "devDependency" },
+    { "source": "pkg:client", "target": "pkg:shared", "type": "dependency" },
+    { "source": "pkg:server", "target": "pkg:shared", "type": "dependency" },
+    { "source": "pkg:client", "target": "ext:react", "type": "dependency" },
+    { "source": "pkg:client", "target": "ext:react-dom", "type": "dependency" },
+    { "source": "pkg:client", "target": "ext:socket.io-client", "type": "dependency" },
+    { "source": "pkg:client", "target": "ext:zustand", "type": "dependency" },
+    { "source": "pkg:client", "target": "ext:vite", "type": "devDependency" },
+    { "source": "pkg:server", "target": "ext:socket.io", "type": "dependency" },
+    { "source": "pkg:server", "target": "ext:express", "type": "dependency" },
+    { "source": "pkg:server", "target": "ext:cors", "type": "dependency" },
+    { "source": "pkg:shared", "target": "ext:vitest", "type": "devDependency" },
+    { "source": "shared:cards", "target": "shared:types", "type": "import" },
+    { "source": "shared:hands", "target": "shared:types", "type": "import" },
+    { "source": "shared:hands", "target": "shared:cards", "type": "import" },
+    { "source": "shared:scoring", "target": "shared:types", "type": "import" },
+    { "source": "shared:scoring", "target": "shared:cards", "type": "import" },
+    { "source": "shared:scoring", "target": "shared:hands", "type": "import" },
+    { "source": "shared:scoring", "target": "shared:classes", "type": "import" },
+    { "source": "shared:scoring", "target": "shared:consumables", "type": "import" },
+    { "source": "shared:classes", "target": "shared:types", "type": "import" },
+    { "source": "shared:monsters", "target": "shared:types", "type": "import" },
+    { "source": "shared:jokers", "target": "shared:types", "type": "import" },
+    { "source": "shared:consumables", "target": "shared:types", "type": "import" },
+    { "source": "shared:gameLogic", "target": "shared:types", "type": "import" },
+    { "source": "shared:gameLogic", "target": "shared:classes", "type": "import" },
+    { "source": "shared:gameLogic", "target": "shared:cards", "type": "import" },
+    { "source": "shared:gameLogic", "target": "shared:hands", "type": "import" },
+    { "source": "shared:gameLogic", "target": "shared:scoring", "type": "import" },
+    { "source": "shared:gameLogic", "target": "shared:monsters", "type": "import" },
+    { "source": "shared:gameLogic", "target": "shared:jokers", "type": "import" },
+    { "source": "shared:gameLogic", "target": "shared:consumables", "type": "import" },
+    { "source": "shared:index", "target": "shared:types", "type": "reexport" },
+    { "source": "shared:index", "target": "shared:cards", "type": "reexport" },
+    { "source": "shared:index", "target": "shared:hands", "type": "reexport" },
+    { "source": "shared:index", "target": "shared:scoring", "type": "reexport" },
+    { "source": "shared:index", "target": "shared:classes", "type": "reexport" },
+    { "source": "shared:index", "target": "shared:monsters", "type": "reexport" },
+    { "source": "shared:index", "target": "shared:jokers", "type": "reexport" },
+    { "source": "shared:index", "target": "shared:consumables", "type": "reexport" },
+    { "source": "shared:index", "target": "shared:gameLogic", "type": "reexport" },
+    { "source": "shared:test:helpers", "target": "shared:types", "type": "testImport" },
+    { "source": "shared:test:cards", "target": "shared:cards", "type": "testImport" },
+    { "source": "shared:test:hands", "target": "shared:hands", "type": "testImport" },
+    { "source": "shared:test:hands", "target": "shared:test:helpers", "type": "testImport" },
+    { "source": "shared:test:scoring", "target": "shared:scoring", "type": "testImport" },
+    { "source": "shared:test:scoring", "target": "shared:hands", "type": "testImport" },
+    { "source": "shared:test:scoring", "target": "shared:test:helpers", "type": "testImport" },
+    { "source": "shared:test:gameLogic", "target": "shared:gameLogic", "type": "testImport" },
+    { "source": "shared:test:gameLogic", "target": "shared:test:helpers", "type": "testImport" },
+    { "source": "shared:test:consumables", "target": "shared:consumables", "type": "testImport" },
+    { "source": "shared:test:consumables", "target": "shared:gameLogic", "type": "testImport" },
+    { "source": "shared:test:consumables", "target": "shared:test:helpers", "type": "testImport" },
+    { "source": "client:main", "target": "client:app", "type": "import" },
+    { "source": "client:main", "target": "client:css", "type": "import" },
+    { "source": "client:app", "target": "client:gameStore", "type": "import" },
+    { "source": "client:app", "target": "client:Lobby", "type": "import" },
+    { "source": "client:app", "target": "client:ClassSelect", "type": "import" },
+    { "source": "client:app", "target": "client:GameBoard", "type": "import" },
+    { "source": "client:app", "target": "client:Shop", "type": "import" },
+    { "source": "client:gameStore", "target": "pkg:shared", "type": "import" },
+    { "source": "client:gameStore", "target": "client:socket", "type": "import" },
+    { "source": "client:socket", "target": "pkg:shared", "type": "import" },
+    { "source": "client:socket", "target": "ext:socket.io-client", "type": "import" },
+    { "source": "client:GameBoard", "target": "pkg:shared", "type": "import" },
+    { "source": "client:GameBoard", "target": "client:MonsterDisplay", "type": "import" },
+    { "source": "client:GameBoard", "target": "client:PlayerStatusPanel", "type": "import" },
+    { "source": "client:GameBoard", "target": "client:HandArea", "type": "import" },
+    { "source": "client:GameBoard", "target": "client:GameLog", "type": "import" },
+    { "source": "client:GameBoard", "target": "client:RoundResultOverlay", "type": "import" },
+    { "source": "client:GameBoard", "target": "client:JokerBar", "type": "import" },
+    { "source": "client:GameBoard", "target": "client:ScorePanel", "type": "import" },
+    { "source": "client:HandArea", "target": "pkg:shared", "type": "import" },
+    { "source": "client:HandArea", "target": "client:CardComponent", "type": "import" },
+    { "source": "client:HandArea", "target": "client:ConsumableTray", "type": "import" },
+    { "source": "client:HandArea", "target": "client:gameStore", "type": "import" },
+    { "source": "client:CardComponent", "target": "pkg:shared", "type": "import" },
+    { "source": "client:ConsumableTray", "target": "pkg:shared", "type": "import" },
+    { "source": "client:ConsumableTray", "target": "client:gameStore", "type": "import" },
+    { "source": "client:JokerBar", "target": "pkg:shared", "type": "import" },
+    { "source": "client:ScorePanel", "target": "pkg:shared", "type": "import" },
+    { "source": "client:MonsterDisplay", "target": "pkg:shared", "type": "import" },
+    { "source": "client:PlayerStatusPanel", "target": "pkg:shared", "type": "import" },
+    { "source": "client:RoundResultOverlay", "target": "pkg:shared", "type": "import" },
+    { "source": "client:RoundResultOverlay", "target": "client:gameStore", "type": "import" },
+    { "source": "client:Lobby", "target": "client:gameStore", "type": "import" },
+    { "source": "client:Lobby", "target": "client:socket", "type": "import" },
+    { "source": "client:ClassSelect", "target": "pkg:shared", "type": "import" },
+    { "source": "client:ClassSelect", "target": "client:gameStore", "type": "import" },
+    { "source": "client:Shop", "target": "pkg:shared", "type": "import" },
+    { "source": "client:Shop", "target": "client:gameStore", "type": "import" },
+    { "source": "client:Shop", "target": "client:ConsumableTray", "type": "import" },
+    { "source": "server:index", "target": "pkg:shared", "type": "import" },
+    { "source": "server:index", "target": "server:rooms", "type": "import" },
+    { "source": "server:index", "target": "ext:express", "type": "import" },
+    { "source": "server:index", "target": "ext:socket.io", "type": "import" },
+    { "source": "server:index", "target": "ext:cors", "type": "import" },
+    { "source": "server:rooms", "target": "pkg:shared", "type": "import" }
+  ]
+};
+
+// ─── Layout ──────────────────────────────────────────────────────────────────
+
+const NODE_RADIUS = {
+  workspace: 24,
+  shared:    16,
+  client:    14,
+  server:    16,
+  external:  12,
+  test:      12,
+};
+
+const INITIAL_POSITIONS = {
+  // Workspace tier (center-top)
+  'root':       { x: 0,    y: -320 },
+  'pkg:shared': { x: 0,    y: -220 },
+  'pkg:client': { x: -260, y: -220 },
+  'pkg:server': { x: 260,  y: -220 },
+
+  // Shared modules (center column)
+  'shared:types':      { x: 120,  y: -100 },
+  'shared:cards':      { x: 0,    y: -100 },
+  'shared:hands':      { x: -60,  y: -30 },
+  'shared:scoring':    { x: 60,   y: -30 },
+  'shared:classes':    { x: 180,  y: -30 },
+  'shared:monsters':   { x: 240,  y: -100 },
+  'shared:jokers':     { x: 300,  y: -30 },
+  'shared:consumables':{ x: 0,    y:  50 },
+  'shared:gameLogic':  { x: 60,   y:  130 },
+  'shared:index':      { x: -120, y: -100 },
+
+  // Test files (right column)
+  'shared:test:helpers':     { x: 480,  y: -100 },
+  'shared:test:cards':       { x: 480,  y: -30 },
+  'shared:test:hands':       { x: 480,  y:  40 },
+  'shared:test:scoring':     { x: 480,  y: 110 },
+  'shared:test:gameLogic':   { x: 480,  y: 180 },
+  'shared:test:consumables': { x: 480,  y: 250 },
+
+  // Client modules (left column)
+  'client:main':              { x: -500, y: -100 },
+  'client:app':               { x: -500, y: -30 },
+  'client:css':               { x: -620, y: -100 },
+  'client:socket':            { x: -500, y: 50 },
+  'client:gameStore':         { x: -500, y: 130 },
+  'client:GameBoard':         { x: -380, y: 50 },
+  'client:HandArea':          { x: -380, y: 130 },
+  'client:CardComponent':     { x: -260, y: 200 },
+  'client:ConsumableTray':    { x: -380, y: 210 },
+  'client:JokerBar':          { x: -260, y: 50 },
+  'client:ScorePanel':        { x: -260, y: 130 },
+  'client:MonsterDisplay':    { x: -260, y: 280 },
+  'client:PlayerStatusPanel': { x: -380, y: 290 },
+  'client:GameLog':           { x: -500, y: 210 },
+  'client:RoundResultOverlay':{ x: -500, y: 290 },
+  'client:Lobby':             { x: -620, y: -30 },
+  'client:ClassSelect':       { x: -620, y: 50 },
+  'client:Shop':              { x: -620, y: 130 },
+
+  // Server modules (far right of center)
+  'server:index': { x: 380, y: 130 },
+  'server:rooms': { x: 380, y: 210 },
+
+  // External (bottom)
+  'ext:react':           { x: -620, y: 210 },
+  'ext:react-dom':       { x: -620, y: 290 },
+  'ext:socket.io-client':{ x: -620, y: 370 },
+  'ext:zustand':         { x: -500, y: 370 },
+  'ext:vite':            { x: -380, y: 370 },
+  'ext:socket.io':       { x: 380,  y: 290 },
+  'ext:express':         { x: 480,  y: 290 },
+  'ext:cors':            { x: 380,  y: 370 },
+  'ext:vitest':          { x: 120,  y: 210 },
+  'ext:concurrently':    { x: 0,    y: -390 },
+};
+
+// ─── Render ──────────────────────────────────────────────────────────────────
+
+const svg = document.getElementById('graph');
+const container = document.getElementById('graph-container');
+
+let transform = { x: 0, y: 0, scale: 1 };
+let nodes = {};
+let activeGroups = new Set(Object.keys(GROUP_COLOR));
+let selectedNode = null;
+
+function buildNodeMap() {
+  nodes = {};
+  GRAPH_DATA.nodes.forEach(n => {
+    const pos = INITIAL_POSITIONS[n.id] || { x: Math.random()*400-200, y: Math.random()*400-200 };
+    nodes[n.id] = { ...n, x: pos.x, y: pos.y };
+  });
+}
+
+function visibleNodes() {
+  const q = document.getElementById('searchInput').value.toLowerCase().trim();
+  return GRAPH_DATA.nodes.filter(n => {
+    if (!activeGroups.has(n.group)) return false;
+    if (q && !n.label.toLowerCase().includes(q) && !n.id.toLowerCase().includes(q)) return false;
+    return true;
+  }).map(n => nodes[n.id]);
+}
+
+function visibleEdges(vnSet) {
+  return GRAPH_DATA.edges.filter(e => vnSet.has(e.source) && vnSet.has(e.target));
+}
+
+function render() {
+  svg.innerHTML = '';
+
+  const vn = visibleNodes();
+  const vnSet = new Set(vn.map(n => n.id));
+  const ve = visibleEdges(vnSet);
+
+  // defs for arrowheads
+  const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+  Object.entries(EDGE_COLOR).forEach(([type, color]) => {
+    const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+    marker.setAttribute('id', `arrow-${type}`);
+    marker.setAttribute('markerWidth', '8');
+    marker.setAttribute('markerHeight', '8');
+    marker.setAttribute('refX', '8');
+    marker.setAttribute('refY', '3');
+    marker.setAttribute('orient', 'auto');
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', 'M0,0 L0,6 L8,3 z');
+    path.setAttribute('fill', color);
+    marker.appendChild(path);
+    defs.appendChild(marker);
+  });
+  svg.appendChild(defs);
+
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.setAttribute('transform', `translate(${transform.x + container.clientWidth/2}, ${transform.y + container.clientHeight/2}) scale(${transform.scale})`);
+
+  // Edges
+  const edgeG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  ve.forEach(e => {
+    const src = nodes[e.source];
+    const tgt = nodes[e.target];
+    if (!src || !tgt) return;
+
+    const dx = tgt.x - src.x, dy = tgt.y - src.y;
+    const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+    const r = NODE_RADIUS[tgt.group] || 14;
+    const ex = tgt.x - dx/dist * r;
+    const ey = tgt.y - dy/dist * r;
+
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', src.x); line.setAttribute('y1', src.y);
+    line.setAttribute('x2', ex);    line.setAttribute('y2', ey);
+    line.setAttribute('stroke', EDGE_COLOR[e.type] || '#ffffff33');
+    line.setAttribute('stroke-width', e.type === 'workspace' || e.type === 'dependency' ? 2 : 1);
+    line.setAttribute('marker-end', `url(#arrow-${e.type})`);
+    if (e.type === 'devDependency') {
+      line.setAttribute('stroke-dasharray', '4 3');
+    }
+    edgeG.appendChild(line);
+  });
+  g.appendChild(edgeG);
+
+  // Nodes
+  const nodeG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  vn.forEach(n => {
+    const r = NODE_RADIUS[n.group] || 14;
+    const color = GROUP_COLOR[n.group];
+    const isSelected = selectedNode === n.id;
+
+    const ng = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    ng.setAttribute('transform', `translate(${n.x}, ${n.y})`);
+    ng.style.cursor = 'pointer';
+
+    if (isSelected) {
+      const glow = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      glow.setAttribute('r', r + 6);
+      glow.setAttribute('fill', color + '33');
+      ng.appendChild(glow);
+    }
+
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('r', r);
+    circle.setAttribute('fill', isSelected ? color : color + 'aa');
+    circle.setAttribute('stroke', color);
+    circle.setAttribute('stroke-width', isSelected ? 2.5 : 1.5);
+    ng.appendChild(circle);
+
+    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    label.setAttribute('text-anchor', 'middle');
+    label.setAttribute('dy', r + 12);
+    label.setAttribute('font-size', n.group === 'workspace' ? '11' : '9');
+    label.setAttribute('fill', isSelected ? color : '#dde8ec');
+    label.setAttribute('font-weight', isSelected ? '700' : '400');
+    label.textContent = n.label;
+    ng.appendChild(label);
+
+    ng.addEventListener('click', () => selectNode(n.id));
+
+    // Drag
+    let dragging = false, dragStart = null, nodeStart = null;
+    ng.addEventListener('mousedown', ev => {
+      ev.stopPropagation();
+      dragging = true;
+      dragStart = { x: ev.clientX, y: ev.clientY };
+      nodeStart = { x: n.x, y: n.y };
+      window.addEventListener('mousemove', onDrag);
+      window.addEventListener('mouseup', onDragEnd);
+    });
+    function onDrag(ev) {
+      if (!dragging) return;
+      const dx = (ev.clientX - dragStart.x) / transform.scale;
+      const dy = (ev.clientY - dragStart.y) / transform.scale;
+      nodes[n.id].x = nodeStart.x + dx;
+      nodes[n.id].y = nodeStart.y + dy;
+      render();
+    }
+    function onDragEnd() {
+      dragging = false;
+      window.removeEventListener('mousemove', onDrag);
+      window.removeEventListener('mouseup', onDragEnd);
+    }
+
+    nodeG.appendChild(ng);
+  });
+  g.appendChild(nodeG);
+  svg.appendChild(g);
+
+  updateStats(vn, ve);
+}
+
+function selectNode(id) {
+  selectedNode = selectedNode === id ? null : id;
+  render();
+  updateSidebar();
+}
+
+function updateSidebar() {
+  const info = document.getElementById('nodeInfo');
+  const edgesSection = document.getElementById('edgesSection');
+
+  if (!selectedNode || !nodes[selectedNode]) {
+    info.innerHTML = '<div class="info-desc">Click any node to inspect it.</div>';
+    edgesSection.style.display = 'none';
+    return;
+  }
+
+  const n = nodes[selectedNode];
+  const color = GROUP_COLOR[n.group];
+  info.innerHTML = `
+    <div class="info-label">${n.id}</div>
+    <div class="info-name">${n.label}</div>
+    <div class="info-group" style="background:${color}22;color:${color};border:1px solid ${color}55">${n.group}</div>
+    <div class="info-desc">${n.description || ''}</div>
+  `;
+
+  const outEdges = GRAPH_DATA.edges.filter(e => e.source === selectedNode);
+  const inEdges  = GRAPH_DATA.edges.filter(e => e.target === selectedNode);
+
+  const renderEdgeList = (edges, dir) => {
+    if (edges.length === 0) return '<div class="edge-item" style="opacity:0.5">none</div>';
+    return edges.map(e => {
+      const otherId = dir === 'out' ? e.target : e.source;
+      const other = nodes[otherId];
+      const otherColor = GROUP_COLOR[other?.group] || '#888';
+      return `<div class="edge-item" style="border-color:${otherColor}88" onclick="selectNode('${otherId}')">
+        <span style="color:${otherColor}">${other?.label || otherId}</span>
+        <span class="edge-direction"> · ${e.type}</span>
+      </div>`;
+    }).join('');
+  };
+
+  document.getElementById('outEdges').innerHTML = renderEdgeList(outEdges, 'out');
+  document.getElementById('inEdges').innerHTML  = renderEdgeList(inEdges,  'in');
+  edgesSection.style.display = 'block';
+}
+
+// Make selectNode callable from inline onclick
+window.selectNode = selectNode;
+
+function updateStats(vn, ve) {
+  const byGroup = {};
+  vn.forEach(n => byGroup[n.group] = (byGroup[n.group] || 0) + 1);
+  document.getElementById('stats').innerHTML = `
+    <div class="stat-box"><div class="stat-num">${vn.length}</div><div class="stat-label">Nodes</div></div>
+    <div class="stat-box"><div class="stat-num">${ve.length}</div><div class="stat-label">Edges</div></div>
+    <div class="stat-box"><div class="stat-num">${Object.keys(byGroup).length}</div><div class="stat-label">Groups</div></div>
+    <div class="stat-box"><div class="stat-num">${GRAPH_DATA.nodes.length}</div><div class="stat-label">Total</div></div>
+  `;
+}
+
+function buildLegends() {
+  const gl = document.getElementById('groupLegend');
+  Object.entries(GROUP_COLOR).forEach(([g, c]) => {
+    gl.innerHTML += `<div class="legend-item"><div class="legend-dot" style="background:${c}"></div>${g}</div>`;
+  });
+
+  const el = document.getElementById('edgeLegend');
+  const edgeTypes = [
+    { type: 'workspace', label: 'workspace member', dash: false },
+    { type: 'dependency', label: 'runtime dependency', dash: false },
+    { type: 'devDependency', label: 'dev dependency', dash: true },
+    { type: 'import', label: 'import', dash: false },
+    { type: 'reexport', label: 're-export (barrel)', dash: false },
+    { type: 'testImport', label: 'test import', dash: false },
+  ];
+  edgeTypes.forEach(({ type, label, dash }) => {
+    const c = EDGE_COLOR[type];
+    el.innerHTML += `<div class="legend-item">
+      <div class="legend-line" style="background:${c};${dash?'border-top:2px dashed '+c+';background:none':''}"></div>
+      ${label}
+    </div>`;
+  });
+}
+
+// ─── Pan & Zoom ──────────────────────────────────────────────────────────────
+
+let isPanning = false, panStart = null;
+
+container.addEventListener('mousedown', ev => {
+  if (ev.target === svg || ev.target === container) {
+    isPanning = true;
+    panStart = { x: ev.clientX - transform.x, y: ev.clientY - transform.y };
+  }
+});
+window.addEventListener('mousemove', ev => {
+  if (!isPanning) return;
+  transform.x = ev.clientX - panStart.x;
+  transform.y = ev.clientY - panStart.y;
+  render();
+});
+window.addEventListener('mouseup', () => { isPanning = false; });
+
+container.addEventListener('wheel', ev => {
+  ev.preventDefault();
+  const factor = ev.deltaY < 0 ? 1.1 : 0.9;
+  const rect = container.getBoundingClientRect();
+  const cx = ev.clientX - rect.left - container.clientWidth/2;
+  const cy = ev.clientY - rect.top - container.clientHeight/2;
+  transform.x = cx - factor * (cx - transform.x);
+  transform.y = cy - factor * (cy - transform.y);
+  transform.scale = Math.min(4, Math.max(0.1, transform.scale * factor));
+  render();
+}, { passive: false });
+
+document.getElementById('zoomIn').onclick = () => {
+  transform.scale = Math.min(4, transform.scale * 1.2);
+  render();
+};
+document.getElementById('zoomOut').onclick = () => {
+  transform.scale = Math.max(0.1, transform.scale / 1.2);
+  render();
+};
+document.getElementById('zoomFit').onclick = () => {
+  transform = { x: 0, y: 0, scale: 0.8 };
+  render();
+};
+
+// ─── Filter buttons ──────────────────────────────────────────────────────────
+
+document.querySelectorAll('.filter-btn[data-group]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const g = btn.dataset.group;
+    if (activeGroups.has(g)) {
+      activeGroups.delete(g);
+      btn.classList.remove('active');
+    } else {
+      activeGroups.add(g);
+      btn.classList.add('active');
+    }
+    render();
+  });
+});
+
+document.getElementById('searchInput').addEventListener('input', render);
+
+// ─── Init ────────────────────────────────────────────────────────────────────
+
+buildNodeMap();
+buildLegends();
+render();
+updateSidebar();
+</script>
+</body>
+</html>
